@@ -6,17 +6,17 @@
 <title>Applicator Database</title>
 <style>
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface2: #222536;
-    --border: #2e3148;
-    --accent: #4f8ef7;
-    --accent2: #7c5cbf;
-    --text: #e8eaf0;
-    --text-muted: #7a7f9a;
-    --success: #2ecc71;
-    --warning: #f39c12;
-    --danger: #e74c3c;
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --accent: #58a6ff;
+    --accent2: #bc8cff;
+    --text: #f0f6fc;
+    --text-muted: #8b949e;
+    --success: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
     --mono: 'Courier New', monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -91,8 +91,12 @@
   .komb-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .komb-chip { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-family: var(--mono); color: var(--accent); }
   .modal-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-  .btn-doc { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-  .btn-doc:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-doc { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; font-weight: 500; }
+  .btn-doc:hover { filter: brightness(1.2); transform: translateY(-1px); }
+  .btn-doc-blue { border-color: rgba(88,166,255,0.4); color: #58a6ff; background: rgba(88,166,255,0.08); }
+  .btn-doc-orange { border-color: rgba(210,153,34,0.4); color: #d29922; background: rgba(210,153,34,0.08); }
+  .btn-doc-green { border-color: rgba(63,185,80,0.4); color: #3fb950; background: rgba(63,185,80,0.08); }
+  .btn-doc-purple { border-color: rgba(188,140,255,0.4); color: #bc8cff; background: rgba(188,140,255,0.08); }
   .no-result { text-align: center; padding: 60px 20px; color: var(--text-muted); }
   .no-result svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.3; }
 
@@ -335,18 +339,27 @@ function showDetail(idx) {
   document.getElementById('m-serial').textContent = r.serial;
   document.getElementById('m-type').textContent = `${r.tipAplikatora || ''}${r.yazakiType ? ' · ' + r.yazakiType : ''}${r.projekat ? ' · ' + r.projekat : ''}`;
 
-  // Actions
+  // Actions — dokumenti
   const actions = document.getElementById('m-actions');
   actions.innerHTML = '';
+
   if (r.tehnickiCrtez && r.tehnickiCrtez.startsWith('http')) {
-    actions.innerHTML += `<a class="btn-doc" href="${r.tehnickiCrtez}" target="_blank">📋 Tehnički crtež</a>`;
-  }
-  if (r.validacioniDok) {
-    actions.innerHTML += `<span class="btn-doc">✅ Val. dok: ${r.validacioniDok.split('\\').pop()}</span>`;
+    actions.innerHTML += `<a class="btn-doc btn-doc-blue" href="${r.tehnickiCrtez}" target="_blank">📐 Tehnički crtež</a>`;
   }
   if (r.ptcIzvestaj && r.ptcIzvestaj.startsWith('http')) {
-    actions.innerHTML += `<a class="btn-doc" href="${r.ptcIzvestaj}" target="_blank">📄 PTC izveštaj</a>`;
+    actions.innerHTML += `<a class="btn-doc btn-doc-orange" href="${r.ptcIzvestaj}" target="_blank">📄 PTC izveštaj</a>`;
   }
+  if (r.validacioniDok && r.validacioniDok.startsWith('http')) {
+    actions.innerHTML += `<a class="btn-doc btn-doc-green" href="${r.validacioniDok}" target="_blank">✅ Validacija</a>`;
+  }
+
+  // Standardi
+  const standards = [r.standard1, r.standard2, r.standard3, r.standard4, r.standard5];
+  standards.forEach((s, i) => {
+    if (s && s.startsWith('http')) {
+      actions.innerHTML += `<a class="btn-doc btn-doc-purple" href="${s}" target="_blank">📋 Standard ${i + 1}</a>`;
+    }
+  });
 
   // Kombinacije
   const kombs = [r.komb1, r.komb2, r.komb3, r.komb4, r.komb5, r.komb6].filter(Boolean);
@@ -396,10 +409,14 @@ function showDetail(idx) {
       <div class="modal-section-title">Kombinacije žica</div>
       <div class="komb-list">${kombs.map(k => `<span class="komb-chip">${k}</span>`).join('')}</div>
     </div>` : ''}
-    ${(r.standard1 || r.standard2 || r.standard3) ? `<div class="modal-section modal-kombinacije">
-      <div class="modal-section-title">Standardi</div>
+    ${[r.standard1,r.standard2,r.standard3,r.standard4,r.standard5].some(Boolean) ? `<div class="modal-section modal-kombinacije">
+      <div class="modal-section-title">Standardi (kliknite da otvorite)</div>
       <div class="komb-list">
-        ${[r.standard1,r.standard2,r.standard3,r.standard4,r.standard5].filter(Boolean).map(s => `<span class="komb-chip" style="color:var(--text-muted);font-size:10px">${s.split('\\').pop()}</span>`).join('')}
+        ${[r.standard1,r.standard2,r.standard3,r.standard4,r.standard5].filter(Boolean).map((s,i) => 
+          s.startsWith('http') 
+            ? `<a href="${s}" target="_blank" class="btn-doc btn-doc-purple" style="font-size:12px">📋 Standard ${i+1}</a>`
+            : `<span class="komb-chip" style="color:var(--text-muted);font-size:11px">${s.split('\\').pop().substring(0,50)}</span>`
+        ).join('')}
       </div>
     </div>` : ''}
   `;
