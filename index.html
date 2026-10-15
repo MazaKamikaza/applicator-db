@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Applicator Database</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222536;
+    --border: #2e3148;
+    --accent: #4f8ef7;
+    --accent2: #7c5cbf;
+    --text: #e8eaf0;
+    --text-muted: #7a7f9a;
+    --success: #2ecc71;
+    --warning: #f39c12;
+    --danger: #e74c3c;
+    --mono: 'Courier New', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  /* HEADER */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  .header-icon { width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .header-icon svg { width: 22px; height: 22px; fill: white; }
+  .header-title { font-size: 18px; font-weight: 700; }
+  .header-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* SEARCH */
+  .search-wrap { max-width: 900px; margin: 32px auto; padding: 0 20px; }
+  .search-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+  .search-title { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .search-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .search-field { flex: 1; min-width: 200px; }
+  .search-field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .search-field input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; font-family: var(--mono); outline: none; transition: border-color 0.2s; }
+  .search-field input:focus { border-color: var(--accent); }
+  .search-field input::placeholder { color: var(--text-muted); }
+  .btn { padding: 10px 24px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #3a7be0; }
+  .btn-clear { background: var(--surface2); color: var(--text-muted); }
+  .btn-clear:hover { color: var(--text); }
+  .search-actions { display: flex; gap: 8px; align-items: flex-end; }
+
+  /* STATUS BAR */
+  .status-bar { max-width: 900px; margin: 0 auto 16px; padding: 0 20px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-muted); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+  .status-dot.loading { background: var(--warning); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* RESULTS TABLE */
+  .results-wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px 40px; }
+  .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .results-count { font-size: 13px; color: var(--text-muted); }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: var(--surface2); padding: 12px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); white-space: nowrap; border-bottom: 1px solid var(--border); }
+  tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 11px 14px; font-size: 13px; white-space: nowrap; }
+  .serial { font-family: var(--mono); color: var(--accent); font-weight: 600; }
+  .terminal { font-family: var(--mono); color: #a0c4ff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-active { background: rgba(46,204,113,0.15); color: var(--success); }
+  .badge-inactive { background: rgba(127,127,127,0.15); color: var(--text-muted); }
+  .days-ok { color: var(--success); }
+  .days-warn { color: var(--warning); }
+  .days-danger { color: var(--danger); }
+
+  /* DETAIL MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; overflow-y: auto; padding: 20px; }
+  .modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; max-width: 800px; width: 100%; margin: auto; padding: 28px; position: relative; }
+  .modal-close { position: absolute; top: 16px; right: 16px; background: var(--surface2); border: none; color: var(--text-muted); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+  .modal-close:hover { color: var(--text); }
+  .modal-serial { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .modal-type { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .modal-section { background: var(--surface2); border-radius: 10px; padding: 16px; }
+  .modal-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px; }
+  .modal-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+  .modal-row:last-child { margin-bottom: 0; }
+  .modal-label { color: var(--text-muted); flex-shrink: 0; }
+  .modal-value { font-family: var(--mono); text-align: right; word-break: break-all; }
+  .modal-kombinacije { grid-column: 1 / -1; }
+  .komb-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .komb-chip { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-family: var(--mono); color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .btn-doc { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-doc:hover { border-color: var(--accent); color: var(--accent); }
+  .no-result { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+  .no-result svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.3; }
+
+  @media (max-width: 600px) {
+    .modal-grid { grid-template-columns: 1fr; }
+    .search-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+  </div>
+  <div>
+    <div class="header-title">Applicator Database</div>
+    <div class="header-sub">Yazaki Serbia — Crimping Applicators</div>
+  </div>
+</div>
+
+<div class="search-wrap">
+  <div class="search-card">
+    <div class="search-title">Pretraga aplikatora</div>
+    <div class="search-row">
+      <div class="search-field">
+        <label>Serijski broj aplikatora</label>
+        <input type="text" id="input-serial" placeholder="npr. L91380, 1704E266..." autocomplete="off" autocapitalize="characters">
+      </div>
+      <div class="search-field">
+        <label>Broj terminala</label>
+        <input type="text" id="input-terminal" placeholder="npr. 7116415602..." autocomplete="off">
+      </div>
+      <div class="search-actions">
+        <button class="btn btn-primary" onclick="doSearch()">Pretraži</button>
+        <button class="btn btn-clear" onclick="clearSearch()">Obriši</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-dot loading" id="status-dot"></div>
+  <span id="status-text">Učitavanje baze...</span>
+</div>
+
+<div class="results-wrap" id="results-wrap" style="display:none">
+  <div class="results-header">
+    <span class="results-count" id="results-count"></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Serijski broj</th>
+          <th>Terminal (Aplikator)</th>
+          <th>RS Broj</th>
+          <th>Tip aplikatora</th>
+          <th>Projekat</th>
+          <th>Status</th>
+          <th>Datum validacije</th>
+          <th>Dana do prev.</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+  <div class="no-result" id="no-result" style="display:none">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    <div>Nema rezultata za zadatu pretragu</div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="closeModalBtn()">×</button>
+    <div class="modal-serial" id="m-serial"></div>
+    <div class="modal-type" id="m-type"></div>
+    <div id="m-actions" class="modal-actions"></div>
+    <div class="modal-grid" id="m-grid"></div>
+  </div>
+</div>
+
+<script>
+const SHEET_ID = '1q7YWEVWL50b9-rKg0Uxa6ioOxhWZoJVrXOfvLFCfaN0';
+const SHEET_NAME = 'Applicator Data';
+let DB = [];
+
+async function loadDB() {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const rows = json.table.rows;
+    const cols = json.table.cols.map(c => c.label);
+
+    DB = rows.map(row => {
+      const c = row.c;
+      const val = (i) => {
+        if (!c[i] || c[i].v === null) return '';
+        if (c[i].f) return String(c[i].f);
+        return String(c[i].v);
+      };
+      return {
+        serial: val(0),
+        asset: val(1),
+        tehnickiCrtez: val(2),
+        validacioniDok: val(3),
+        ptcIzvestaj: val(4),
+        aplikator: val(5),
+        rsBroj: val(6),
+        datumProizvodnje: val(7),
+        gumica: val(8),
+        tipAplikatora: val(9),
+        yazakiType: val(10),
+        komb1: val(11),
+        komb2: val(12),
+        komb3: val(13),
+        komb4: val(14),
+        komb5: val(15),
+        komb6: val(16),
+        tipIzolacije: val(17),
+        presekMin: val(18),
+        presekMax: val(19),
+        strip: val(20),
+        projekat: val(21),
+        lokacija: val(22),
+        anvil: val(23),
+        anvilNivo: val(24),
+        wireCrimper: val(25),
+        wireCrimperNivo: val(26),
+        insulationCrimper: val(27),
+        insulationCrimperNivo: val(28),
+        status: val(29),
+        datumValidacije: val(30),
+        standard1: val(31),
+        standard2: val(32),
+        standard3: val(33),
+        standard4: val(34),
+        standard5: val(35),
+        datumPreventivnog: val(36),
+        datumSledeceg: val(37),
+        danaDo: val(38)
+      };
+    }).filter(r => r.serial);
+
+    document.getElementById('status-dot').classList.remove('loading');
+    document.getElementById('status-text').textContent = `Baza učitana — ${DB.length} aplikatora`;
+
+    // Enter key
+    ['input-serial','input-terminal'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
+    });
+
+  } catch(e) {
+    console.error(e);
+    document.getElementById('status-text').textContent = 'Greška pri učitavanju baze!';
+  }
+}
+
+function doSearch() {
+  const serial = document.getElementById('input-serial').value.trim().toUpperCase();
+  const terminal = document.getElementById('input-terminal').value.trim();
+
+  let results = DB;
+
+  if (serial) {
+    results = results.filter(r => r.serial.toUpperCase().includes(serial));
+  }
+  if (terminal) {
+    results = results.filter(r => r.aplikator.includes(terminal));
+  }
+
+  if (!serial && !terminal) {
+    results = [];
+  }
+
+  renderResults(results);
+}
+
+function clearSearch() {
+  document.getElementById('input-serial').value = '';
+  document.getElementById('input-terminal').value = '';
+  document.getElementById('results-wrap').style.display = 'none';
+}
+
+function renderResults(results) {
+  const wrap = document.getElementById('results-wrap');
+  const body = document.getElementById('results-body');
+  const noResult = document.getElementById('no-result');
+  const count = document.getElementById('results-count');
+
+  wrap.style.display = 'block';
+
+  if (!results.length) {
+    body.innerHTML = '';
+    noResult.style.display = 'block';
+    count.textContent = '';
+    return;
+  }
+
+  noResult.style.display = 'none';
+  count.textContent = `${results.length} rezultat${results.length === 1 ? '' : results.length < 5 ? 'a' : 'a'}`;
+
+  body.innerHTML = results.map((r, i) => {
+    const days = parseInt(r.danaDo) || 0;
+    let daysClass = 'days-ok';
+    let daysText = r.datumSledeceg ? `${days} dana` : '—';
+    if (r.datumSledeceg) {
+      if (days < 0) { daysClass = 'days-danger'; daysText = `Isteklo (${Math.abs(days)} dana)`; }
+      else if (days < 30) { daysClass = 'days-warn'; daysText = `${days} dana`; }
+    }
+
+    const statusBadge = r.status === 'Active'
+      ? '<span class="badge badge-active">Active</span>'
+      : '<span class="badge badge-inactive">Inactive</span>';
+
+    return `<tr onclick="showDetail(${i})">
+      <td><span class="serial">${r.serial}</span></td>
+      <td><span class="terminal">${r.aplikator || '—'}</span></td>
+      <td>${r.rsBroj || '—'}</td>
+      <td>${r.tipAplikatora || '—'}</td>
+      <td>${r.projekat || '—'}</td>
+      <td>${statusBadge}</td>
+      <td>${r.datumValidacije || '—'}</td>
+      <td><span class="${daysClass}">${daysText}</span></td>
+    </tr>`;
+  }).join('');
+
+  // Store results for detail view
+  window._currentResults = results;
+}
+
+function showDetail(idx) {
+  const r = window._currentResults[idx];
+  if (!r) return;
+
+  document.getElementById('m-serial').textContent = r.serial;
+  document.getElementById('m-type').textContent = `${r.tipAplikatora || ''}${r.yazakiType ? ' · ' + r.yazakiType : ''}${r.projekat ? ' · ' + r.projekat : ''}`;
+
+  // Actions
+  const actions = document.getElementById('m-actions');
+  actions.innerHTML = '';
+  if (r.tehnickiCrtez && r.tehnickiCrtez.startsWith('http')) {
+    actions.innerHTML += `<a class="btn-doc" href="${r.tehnickiCrtez}" target="_blank">📋 Tehnički crtež</a>`;
+  }
+  if (r.validacioniDok) {
+    actions.innerHTML += `<span class="btn-doc">✅ Val. dok: ${r.validacioniDok.split('\\').pop()}</span>`;
+  }
+  if (r.ptcIzvestaj && r.ptcIzvestaj.startsWith('http')) {
+    actions.innerHTML += `<a class="btn-doc" href="${r.ptcIzvestaj}" target="_blank">📄 PTC izveštaj</a>`;
+  }
+
+  // Kombinacije
+  const kombs = [r.komb1, r.komb2, r.komb3, r.komb4, r.komb5, r.komb6].filter(Boolean);
+
+  const days = parseInt(r.danaDo) || 0;
+  let daysStr = r.datumSledeceg ? `${days} dana` : '—';
+  let daysColor = '';
+  if (r.datumSledeceg) {
+    if (days < 0) { daysColor = 'color:var(--danger)'; daysStr = `Isteklo (${Math.abs(days)} dana)`; }
+    else if (days < 30) { daysColor = 'color:var(--warning)'; }
+    else { daysColor = 'color:var(--success)'; }
+  }
+
+  document.getElementById('m-grid').innerHTML = `
+    <div class="modal-section">
+      <div class="modal-section-title">Identifikacija</div>
+      <div class="modal-row"><span class="modal-label">Serijski br.</span><span class="modal-value">${r.serial}</span></div>
+      <div class="modal-row"><span class="modal-label">Asset</span><span class="modal-value">${r.asset || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">Terminal</span><span class="modal-value" style="color:var(--accent)">${r.aplikator || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">RS Broj</span><span class="modal-value">${r.rsBroj || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">Gumica</span><span class="modal-value">${r.gumica || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">Datum proiz.</span><span class="modal-value">${r.datumProizvodnje || '—'}</span></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Tehnički podaci</div>
+      <div class="modal-row"><span class="modal-label">Tip izolacije</span><span class="modal-value">${r.tipIzolacije || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">Presek min</span><span class="modal-value">${r.presekMin || '—'} mm²</span></div>
+      <div class="modal-row"><span class="modal-label">Presek max</span><span class="modal-value">${r.presekMax || '—'} mm²</span></div>
+      <div class="modal-row"><span class="modal-label">Strip</span><span class="modal-value">${r.strip || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">Lokacija</span><span class="modal-value">${r.lokacija || '—'}</span></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Alati (nivoi)</div>
+      <div class="modal-row"><span class="modal-label">Anvil</span><span class="modal-value">${r.anvil || '—'} <span style="color:var(--text-muted)">${r.anvilNivo || ''}</span></span></div>
+      <div class="modal-row"><span class="modal-label">Wire Crimper</span><span class="modal-value">${r.wireCrimper || '—'} <span style="color:var(--text-muted)">${r.wireCrimperNivo || ''}</span></span></div>
+      <div class="modal-row"><span class="modal-label">Ins. Crimper</span><span class="modal-value">${r.insulationCrimper || '—'} <span style="color:var(--text-muted)">${r.insulationCrimperNivo || ''}</span></span></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Status i validacija</div>
+      <div class="modal-row"><span class="modal-label">Status</span><span class="modal-value">${r.status === 'Active' ? '<span style="color:var(--success)">✓ Active</span>' : '<span style="color:var(--text-muted)">Inactive</span>'}</span></div>
+      <div class="modal-row"><span class="modal-label">Datum val.</span><span class="modal-value">${r.datumValidacije || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">Prev. urađen</span><span class="modal-value">${r.datumPreventivnog || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">Sledeći prev.</span><span class="modal-value">${r.datumSledeceg || '—'}</span></div>
+      <div class="modal-row"><span class="modal-label">Dana do prev.</span><span class="modal-value" style="${daysColor}">${daysStr}</span></div>
+    </div>
+    ${kombs.length ? `<div class="modal-section modal-kombinacije">
+      <div class="modal-section-title">Kombinacije žica</div>
+      <div class="komb-list">${kombs.map(k => `<span class="komb-chip">${k}</span>`).join('')}</div>
+    </div>` : ''}
+    ${(r.standard1 || r.standard2 || r.standard3) ? `<div class="modal-section modal-kombinacije">
+      <div class="modal-section-title">Standardi</div>
+      <div class="komb-list">
+        ${[r.standard1,r.standard2,r.standard3,r.standard4,r.standard5].filter(Boolean).map(s => `<span class="komb-chip" style="color:var(--text-muted);font-size:10px">${s.split('\\').pop()}</span>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModalBtn();
+}
+function closeModalBtn() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModalBtn(); });
+
+loadDB();
+</script>
+</body>
+</html>
