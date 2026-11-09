@@ -205,15 +205,37 @@ const SHEET_NAME = 'Applicator Data';
 const INFO_SHEET = 'Info';   // tab u kome je u celiji A1 upisan datum poslednjeg azuriranja
 let DB = [];
 
+// Ucitavanje iz Google Sheeta sa ponovnim pokusajem (503 i slicne greske su privremene)
+async function fetchGviz(url, tries = 3) {
+  let lastErr;
+  for (let t = 0; t < tries; t++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/);
+      if (!m) throw new Error('Neočekivan odgovor — proveri da li je Sheet podešen na "Anyone with the link"');
+      const json = JSON.parse(m[1]);
+      if (json.status === 'error') {
+        const er = json.errors && json.errors[0];
+        throw new Error((er && (er.detailed_message || er.message)) || 'Google greška');
+      }
+      return json;
+    } catch (e) {
+      lastErr = e;
+      if (t < tries - 1) await new Promise(r => setTimeout(r, 800 * (t + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 // Last update: cita celiju A1 iz taba "Info" (ne zavisi od kolona u glavnoj tabeli)
 async function loadLastUpdate() {
   const el = document.getElementById('last-update');
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=0&range=A1:A1&sheet=${encodeURIComponent(INFO_SHEET)}`;
-    const res = await fetch(url);
-    const text = await res.text();
-    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
-    const cell = json.table.rows[0] && json.table.rows[0].c[0];
+    const json = await fetchGviz(url);
+    const cell =json.table.rows[0] && json.table.rows[0].c[0];
     const v = cell ? (cell.f || cell.v) : '';
     el.textContent = v ? String(v) : '—';
   } catch (e) {
@@ -225,9 +247,7 @@ async function loadLastUpdate() {
 async function loadDB() {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
-    const res = await fetch(url);
-    const text = await res.text();
-    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const json = await fetchGviz(url);
     let rows = json.table.rows;
     let labels = json.table.cols.map(c => c.label || '');
     // Ako Google nije prepoznao zaglavlje, prvi red se tretira kao zaglavlje
@@ -302,7 +322,7 @@ async function loadDB() {
 
   } catch(e) {
     console.error(e);
-    document.getElementById('status-text').textContent = 'Greška pri učitavanju baze!';
+    document.getElementById('status-text').textContent = 'Greška pri učitavanju baze: ' + (e && e.message ? e.message : e);
   }
 }
 
