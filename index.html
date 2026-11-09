@@ -28,6 +28,8 @@
   .header-icon svg { width: 22px; height: 22px; fill: white; }
   .header-title { font-size: 18px; font-weight: 700; }
   .header-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .header-update { margin-left: auto; text-align: right; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+  .header-update strong { display: block; margin-top: 2px; font-size: 14px; letter-spacing: 0; text-transform: none; color: var(--text); font-weight: 600; }
 
   /* SEARCH */
   .search-wrap { max-width: 900px; margin: 32px auto; padding: 0 20px; }
@@ -101,6 +103,11 @@
   .no-result { text-align: center; padding: 60px 20px; color: var(--text-muted); }
   .no-result svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.3; }
 
+  /* FOOTER */
+  .app-footer { max-width: 1200px; margin: 24px auto 0; padding: 20px 20px 32px; border-top: 1px solid var(--border); text-align: center; color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+  .app-footer strong { color: var(--text); font-weight: 600; }
+  .footer-copy { color: var(--text); font-weight: 600; margin-bottom: 4px; }
+
   @media (max-width: 600px) {
     .modal-grid { grid-template-columns: 1fr; }
     .search-row { flex-direction: column; }
@@ -117,6 +124,7 @@
     <div class="header-title">Applicator Database</div>
     <div class="header-sub">Yazaki Serbia — Crimping Applicators</div>
   </div>
+  <div class="header-update">Last update<strong id="last-update">—</strong></div>
 </div>
 
 <div class="search-wrap">
@@ -182,10 +190,37 @@
   </div>
 </div>
 
+<footer class="app-footer">
+  <div class="footer-copy">© 2026 Yazaki Serbia</div>
+  <div class="footer-meta">
+    Developed by: Sandra Ilić (Process Owner)<br>
+    Approved by: Aleksandar Savić<br>
+    Approved for use by Production Engineering
+  </div>
+</footer>
+
 <script>
 const SHEET_ID = '1q7YWEVWL50b9-rKg0Uxa6ioOxhWZoJVrXOfvLFCfaN0';
 const SHEET_NAME = 'Applicator Data';
+const INFO_SHEET = 'Info';   // tab u kome je u celiji A1 upisan datum poslednjeg azuriranja
 let DB = [];
+
+// Last update: cita celiju A1 iz taba "Info" (ne zavisi od kolona u glavnoj tabeli)
+async function loadLastUpdate() {
+  const el = document.getElementById('last-update');
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=0&range=A1:A1&sheet=${encodeURIComponent(INFO_SHEET)}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const cell = json.table.rows[0] && json.table.rows[0].c[0];
+    const v = cell ? (cell.f || cell.v) : '';
+    el.textContent = v ? String(v) : '—';
+  } catch (e) {
+    console.warn('Last update nije ucitan (proveri tab "Info", celija A1):', e);
+    el.textContent = '—';
+  }
+}
 
 async function loadDB() {
   try {
@@ -193,57 +228,68 @@ async function loadDB() {
     const res = await fetch(url);
     const text = await res.text();
     const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
-    const rows = json.table.rows;
-    const cols = json.table.cols.map(c => c.label);
+    let rows = json.table.rows;
+    let labels = json.table.cols.map(c => c.label || '');
+    // Ako Google nije prepoznao zaglavlje, prvi red se tretira kao zaglavlje
+    if (labels.filter(Boolean).length < 5 && rows.length) {
+      labels = (rows[0].c || []).map(x => (x && x.v != null) ? String(x.v) : '');
+      rows = rows.slice(1);
+    }
+
+    // Kolone se traze po nazivu zaglavlja (ne po slovu), pa umetanje novih kolona ne kvari aplikaciju
+    const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
+    const idx = {};
+    labels.forEach((l, i) => { const k = norm(l); if (k && !(k in idx)) idx[k] = i; });
+    const find = (...names) => { for (const n of names) { const k = norm(n); if (k in idx) return idx[k]; } return -1; };
+
+    const C = {
+      serial: find('Serijski broj'),
+      asset: find('Asset'),
+      tehnickiCrtez: find('Tehnicki crtez'),
+      validacioniDok: find('Validacioni dokument'),
+      ptcIzvestaj: find('PTC Izvestaj'),
+      aplikator: find('Aplikator'),
+      rsBroj: find('RS Broj'),
+      datumProizvodnje: find('Datum proizvodnje'),
+      gumica: find('Gumica'),
+      tipAplikatora: find('Tip aplikatora'),
+      yazakiType: find('Yazaki Type'),
+      tipIzolacije: find('Tip izolacije'),
+      presekMin: find('Presek (min)', 'Presek min'),
+      presekMax: find('Presek (max)', 'Presek max'),
+      valPresek1: find('Validacija Presek 1'),
+      valPresek2: find('Validacija Presek 2'),
+      strip: find('Strip'),
+      projekat: find('Projekat'),
+      lokacija: find('Lokacija'),
+      anvil: find('Anvil'),
+      anvilNivo: find('Nivo'),
+      wireCrimper: find('Wire Crimper'),
+      wireCrimperNivo: find('Nivo2'),
+      insulationCrimper: find('Insulation Crimper'),
+      insulationCrimperNivo: find('Nivo3'),
+      status: find('Status'),
+      datumValidacije: find('Datum Validacije'),
+      datumPreventivnog: find('Datum preventivnog'),
+      datumSledeceg: find('Datum sledeceg preventnog', 'Datum sledeceg preventivnog'),
+      danaDo: find('Broj dana do isteka preventivnog')
+    };
+    const kombCols = [1,2,3,4,5,6,7,8,9].map(n => find('Kombinacija ' + n));
+    const stdCols = [1,2,3,4,5].map(n => find('Standard ' + n));
+
+    if (C.serial < 0) throw new Error('Kolona "Serijski broj" nije pronadjena u zaglavlju');
+    Object.keys(C).forEach(k => { if (C[k] < 0) console.warn('Kolona nije pronadjena u Sheetu:', k); });
 
     DB = rows.map(row => {
-      const c = row.c;
+      const c = row.c || [];
       const val = (i) => {
-        if (!c[i] || c[i].v === null) return '';
+        if (i < 0 || !c[i] || c[i].v === null || c[i].v === undefined) return '';
         if (c[i].f) return String(c[i].f);
         return String(c[i].v);
       };
-      return {
-        serial: val(0),
-        asset: val(1),
-        tehnickiCrtez: val(2),
-        validacioniDok: val(3),
-        ptcIzvestaj: val(4),
-        aplikator: val(5),
-        rsBroj: val(6),
-        datumProizvodnje: val(7),
-        gumica: val(8),
-        tipAplikatora: val(9),
-        yazakiType: val(10),
-        komb1: val(11),
-        komb2: val(12),
-        komb3: val(13),
-        komb4: val(14),
-        komb5: val(15),
-        komb6: val(16),
-        tipIzolacije: val(17),
-        presekMin: val(18),
-        presekMax: val(19),
-        strip: val(20),
-        projekat: val(21),
-        lokacija: val(22),
-        anvil: val(23),
-        anvilNivo: val(24),
-        wireCrimper: val(25),
-        wireCrimperNivo: val(26),
-        insulationCrimper: val(27),
-        insulationCrimperNivo: val(28),
-        status: val(29),
-        datumValidacije: val(30),
-        standard1: val(31),
-        standard2: val(32),
-        standard3: val(33),
-        standard4: val(34),
-        standard5: val(35),
-        datumPreventivnog: val(36),
-        datumSledeceg: val(37),
-        danaDo: val(38)
-      };
+      const r = { kombs: kombCols.map(val), standards: stdCols.map(val) };
+      Object.keys(C).forEach(k => { r[k] = val(C[k]); });
+      return r;
     }).filter(r => r.serial);
 
     document.getElementById('status-dot').classList.remove('loading');
@@ -356,7 +402,9 @@ function showDetail(idx) {
   }
 
   // Kombinacije
-  const kombs = [r.komb1, r.komb2, r.komb3, r.komb4, r.komb5, r.komb6].filter(Boolean);
+  const kombs = (r.kombs || []).filter(Boolean);
+  const stds = r.standards || [];
+  const mm2 = v => v ? `${v} mm²` : '—';
 
   const days = parseInt(r.danaDo) || 0;
   let daysStr = r.datumSledeceg ? `${days} dana` : '—';
@@ -380,8 +428,10 @@ function showDetail(idx) {
     <div class="modal-section">
       <div class="modal-section-title">Tehnički podaci</div>
       <div class="modal-row"><span class="modal-label">Tip izolacije</span><span class="modal-value">${r.tipIzolacije || '—'}</span></div>
-      <div class="modal-row"><span class="modal-label">Presek min</span><span class="modal-value">${r.presekMin || '—'} mm²</span></div>
-      <div class="modal-row"><span class="modal-label">Presek max</span><span class="modal-value">${r.presekMax || '—'} mm²</span></div>
+      <div class="modal-row"><span class="modal-label">Presek min</span><span class="modal-value">${mm2(r.presekMin)}</span></div>
+      <div class="modal-row"><span class="modal-label">Presek max</span><span class="modal-value">${mm2(r.presekMax)}</span></div>
+      <div class="modal-row"><span class="modal-label">Val. presek 1</span><span class="modal-value">${mm2(r.valPresek1)}</span></div>
+      <div class="modal-row"><span class="modal-label">Val. presek 2</span><span class="modal-value">${mm2(r.valPresek2)}</span></div>
       <div class="modal-row"><span class="modal-label">Strip</span><span class="modal-value">${r.strip || '—'}</span></div>
       <div class="modal-row"><span class="modal-label">Lokacija</span><span class="modal-value">${r.lokacija || '—'}</span></div>
     </div>
@@ -403,11 +453,11 @@ function showDetail(idx) {
       <div class="modal-section-title">Kombinacije žica</div>
       <div class="komb-list">${kombs.map(k => `<span class="komb-chip">${k}</span>`).join('')}</div>
     </div>` : ''}
-    ${[r.standard1,r.standard2,r.standard3,r.standard4,r.standard5].some(s => s && s.startsWith('http')) ? `<div class="modal-section modal-kombinacije">
+    ${stds.some(s => s && s.startsWith('http')) ? `<div class="modal-section modal-kombinacije">
       <div class="modal-section-title">Standardi</div>
       <div class="komb-list">
-        ${[r.standard1,r.standard2,r.standard3,r.standard4,r.standard5].filter(Boolean).map((s,i) =>
-          s.startsWith('http')
+        ${stds.map((s,i) =>
+          s && s.startsWith('http')
             ? `<a href="${s}" target="_blank" class="btn-doc btn-doc-purple">📋 Standard ${i+1}</a>`
             : ''
         ).join('')}
@@ -427,6 +477,7 @@ function closeModalBtn() {
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModalBtn(); });
 
 loadDB();
+loadLastUpdate();
 </script>
 </body>
 </html>
