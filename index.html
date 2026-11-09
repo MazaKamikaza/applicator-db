@@ -250,17 +250,31 @@ async function loadDB() {
     const json = await fetchGviz(url);
     let rows = json.table.rows;
     let labels = json.table.cols.map(c => c.label || '');
-    // Ako Google nije prepoznao zaglavlje, prvi red se tretira kao zaglavlje
-    if (labels.filter(Boolean).length < 5 && rows.length) {
-      labels = (rows[0].c || []).map(x => (x && x.v != null) ? String(x.v) : '');
-      rows = rows.slice(1);
+    // Normalizacija naziva: mala slova, bez dijakritika, bez visestrukih razmaka
+    const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
+    const hasSerial = arr => arr.some(l => { const k = norm(l); return k === 'serijski broj' || k.endsWith(' serijski broj'); });
+
+    // Ako Google nije prepoznao pravi red zaglavlja, trazi ga u prvih 10 redova
+    if (!hasSerial(labels)) {
+      for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        const cand = (rows[i].c || []).map(x => (x && x.v != null) ? String(x.v) : '');
+        if (hasSerial(cand)) { labels = cand; rows = rows.slice(i + 1); break; }
+      }
     }
 
     // Kolone se traze po nazivu zaglavlja (ne po slovu), pa umetanje novih kolona ne kvari aplikaciju
-    const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
     const idx = {};
     labels.forEach((l, i) => { const k = norm(l); if (k && !(k in idx)) idx[k] = i; });
-    const find = (...names) => { for (const n of names) { const k = norm(n); if (k in idx) return idx[k]; } return -1; };
+    const find = (...names) => {
+      for (const n of names) { const k = norm(n); if (k in idx) return idx[k]; }
+      // rezervno: naziv na kraju spojenog zaglavlja (npr. "Grupa Serijski broj")
+      for (const n of names) {
+        const k = ' ' + norm(n);
+        const hit = Object.keys(idx).find(key => (' ' + key).endsWith(k));
+        if (hit) return idx[hit];
+      }
+      return -1;
+    };
 
     const C = {
       serial: find('Serijski broj'),
@@ -297,7 +311,7 @@ async function loadDB() {
     const kombCols = [1,2,3,4,5,6,7,8,9].map(n => find('Kombinacija ' + n));
     const stdCols = [1,2,3,4,5].map(n => find('Standard ' + n));
 
-    if (C.serial < 0) throw new Error('Kolona "Serijski broj" nije pronadjena u zaglavlju');
+    if (C.serial < 0) throw new Error('Kolona "Serijski broj" nije pronađena. Zaglavlja koja Google vidi: ' + (labels.filter(Boolean).slice(0, 8).join(' | ') || '(nijedno)'));
     Object.keys(C).forEach(k => { if (C[k] < 0) console.warn('Kolona nije pronadjena u Sheetu:', k); });
 
     DB = rows.map(row => {
