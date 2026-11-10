@@ -438,6 +438,7 @@ function showDetail(idx) {
   // Kombinacije
   const kombs = (r.kombs || []).filter(Boolean);
   const stds = r.standards || [];
+  const valKombs = [r.valPresek1, r.valPresek2].filter(Boolean).map(v => `${v} mm²`);
   const mm2 = v => v ? `${v} mm²` : '—';
 
   const days = parseInt(r.danaDo) || 0;
@@ -464,8 +465,6 @@ function showDetail(idx) {
       <div class="modal-row"><span class="modal-label">Tip izolacije</span><span class="modal-value">${r.tipIzolacije || '—'}</span></div>
       <div class="modal-row"><span class="modal-label">Presek min</span><span class="modal-value">${mm2(r.presekMin)}</span></div>
       <div class="modal-row"><span class="modal-label">Presek max</span><span class="modal-value">${mm2(r.presekMax)}</span></div>
-      <div class="modal-row"><span class="modal-label">Val. presek 1</span><span class="modal-value">${mm2(r.valPresek1)}</span></div>
-      <div class="modal-row"><span class="modal-label">Val. presek 2</span><span class="modal-value">${mm2(r.valPresek2)}</span></div>
       <div class="modal-row"><span class="modal-label">Strip</span><span class="modal-value">${r.strip || '—'}</span></div>
       <div class="modal-row"><span class="modal-label">Lokacija</span><span class="modal-value">${r.lokacija || '—'}</span></div>
     </div>
@@ -483,8 +482,12 @@ function showDetail(idx) {
       <div class="modal-row"><span class="modal-label">Sledeći prev.</span><span class="modal-value">${r.datumSledeceg || '—'}</span></div>
       <div class="modal-row"><span class="modal-label">Dana do prev.</span><span class="modal-value" style="${daysColor}">${daysStr}</span></div>
     </div>
+    ${valKombs.length ? `<div class="modal-section modal-kombinacije">
+      <div class="modal-section-title">Kombinacije validacije aplikatora</div>
+      <div class="komb-list">${valKombs.map(k => `<span class="komb-chip">${k}</span>`).join('')}</div>
+    </div>` : ''}
     ${kombs.length ? `<div class="modal-section modal-kombinacije">
-      <div class="modal-section-title">Kombinacije žica</div>
+      <div class="modal-section-title">Kombinacije koje se rade u proizvodnji</div>
       <div class="komb-list">${kombs.map(k => `<span class="komb-chip">${k}</span>`).join('')}</div>
     </div>` : ''}
     ${stds.some(s => s && s.startsWith('http')) ? `<div class="modal-section modal-kombinacije">
